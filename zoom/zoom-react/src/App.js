@@ -7,8 +7,6 @@ import RoomChat from './component/roomChat';
 function App() {
   return (
     <div className="App">
-      <Room />
-      <Video />
       <RoomChat />
     </div>
   );

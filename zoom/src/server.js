@@ -9,6 +9,7 @@ const maria = require('./maria');
 app.use(cors());
 
 
+app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: false }));
 
 //app.set("view engine", "pug");
@@ -27,6 +28,7 @@ app.get("/getMessages", function (req, res) {
         maria.query(sql, function (err, rows, fields) {
             if (!err) {
                 res.json(true);
+                console.log('suc');
             } else {
                 console.log(err);
                 res.json(false);
@@ -40,10 +42,10 @@ app.get("/getMessages", function (req, res) {
 
 app.post("/sendMessage", function (req, res) {
     try {
-        console.log('!!!', req.body);
         const data = req.body;
-        const sql = 'INSERT INTO messages(user_id, content) values ';
-        const sqlValue = `("${data.user_id}", "${data.content}");`;
+        const sql = 'INSERT INTO messages(name, content) values ';
+        const sqlValue = `("${data.name}", "${data.content}");`;
+        console.log('req: ', req.body);
         maria.query(sql + sqlValue, function (err, rows, fields) {
             if (!err) {
                 res.json(true);
@@ -53,7 +55,7 @@ app.post("/sendMessage", function (req, res) {
             }
         });
     } catch (e) {
-
+        console.log(e);
     }
 });
 

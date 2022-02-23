@@ -17,7 +17,7 @@ con.connect(function (err) {
 
     console.log("Connected!");
 
-    var sql = "CREATE TABLE IF NOT EXISTS messages (user_id VARCHAR(255), content VARCHAR(255))";
+    var sql = "CREATE TABLE IF NOT EXISTS messages (name VARCHAR(255), content VARCHAR(255))";
 
     con.query(sql, function (err, result) {
 
