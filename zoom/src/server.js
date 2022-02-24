@@ -67,6 +67,7 @@ const httpServer = http.createServer(app);
 const wsServer = new Server(httpServer);
 
 wsServer.on("connection", socket => {
+    socket.broadcast.emit('welcome');
     socket.on("join_room", (roomName) => {
         socket.join(roomName);
         //send message to room
@@ -80,6 +81,9 @@ wsServer.on("connection", socket => {
     });
     socket.on("ice", (ice, roomName) => {
         socket.to(roomName).emit("ice", ice);
+    });
+    socket.on("send_message", (name, content) => {
+        socket.broadcast.emit("add_message", name, content);
     });
 });
 

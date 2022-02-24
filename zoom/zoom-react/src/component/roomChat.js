@@ -3,45 +3,44 @@ import chatMessage from "./chatMessage";
 import axios from 'axios';
 import { useEffect } from "react";
 import "../App.css";
+import io from 'socket.io-client';
+import { useRef } from 'react'
 
 
 export default function RoomChat() {
     const [chat, setChat] = useState({ name: "", content: "" });
     const [chatArr, setChatArr] = useState([]);
+    const [user, setUser] = useState(chat.name);
+    const socketRef = useRef();
+
+
     useEffect(() => {
-        console.log('aaaa');
-        axios.get(
-            '/getMessages'
-        ).then((res) => {
-            console.log(res);
-        })
+        socketRef.current = io.connect('http://localhost:3000');
+        socketRef.current.on('welcome', () => {
+            console.log('somemone joined');
+        });
+        socketRef.current.on('add_message', (content) => {
+            setChatArr((chatArr) => chatArr.concat(content));
+        });
+        console.log('enter_room');
         return () => {
-            console.log('컴포넌트가 화면에서 사라짐');
+            socketRef.current.close();
         };
     }, []);
 
+
     function sendMessage(e) {
         e.preventDefault();
-        console.log('content', chat.content);
-        try {
-            axios.post('/sendMessage', {
-                // headers: { 'Content-type': 'application/json' },
-                name: chat.name,
-                content: chat.content,
-            }).then(function (result) {
-                {
-                    if (result.data) {
-                        console.log(result);
-                        setChat({ name: chat.name, content: '' });
-                    } else {
-                        console.log('삐빅');
-                    }
-                }
-            });
-        } catch (error) {
-            console.error(error);
+        // socketRef.current.emit('send_message', { name: chat.name, content: chat.content });
+        while (true) {
+            socketRef.current.emit('send_message', { name: { x: 1.99999564614121231313, y: 0.1492123123, z: 2.5823291232813812398 } });
         }
     }
+
+
+
+
+
 
     return (
         <div className="box">
@@ -58,6 +57,7 @@ export default function RoomChat() {
                 <input type="text" value={chat.content} onChange={(e) => { setChat({ name: chat.name, content: e.target.value }) }} placeholder="내용"></input>
                 <button>등록</button>
             </form>
+
         </div>
     );
 }
