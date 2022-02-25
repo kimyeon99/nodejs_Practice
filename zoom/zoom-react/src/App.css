@@ -5,7 +5,10 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  white-space: pre-line;
 }
+
+
 
 .box{
   width:40%;
@@ -13,14 +16,7 @@
   border:1px solid black;
   border-radius: 1rem;
 }
-.chatArea{
-  border:1px solid black;
-  border-radius: 1rem;
-  height:95%;
-  width: 100%;
- display: flex;
- justify-content: center;
-}
+
 .input{
   display: flex;
   height: 5%;

@@ -67,6 +67,7 @@ const httpServer = http.createServer(app);
 const wsServer = new Server(httpServer);
 
 wsServer.on("connection", socket => {
+    socket["nickname"] = '누군가';
     socket.broadcast.emit('welcome');
     socket.on("join_room", (roomName) => {
         socket.join(roomName);
@@ -82,9 +83,13 @@ wsServer.on("connection", socket => {
     socket.on("ice", (ice, roomName) => {
         socket.to(roomName).emit("ice", ice);
     });
-    socket.on("send_message", (name, content) => {
-        socket.broadcast.emit("add_message", name, content);
+    socket.on("new_message", (msg, done) => {
+        socket.broadcast.emit("new_message", `${socket.nickname}: ${msg}`);
+        done();
     });
+    socket.on("disconnecting"() => {
+
+    })
 });
 
 
