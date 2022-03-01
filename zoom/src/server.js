@@ -68,11 +68,20 @@ const wsServer = new Server(httpServer);
 
 wsServer.on("connection", socket => {
     socket["nickname"] = '누군가';
-    socket.broadcast.emit('welcome');
+    //    socket['users'] = { id: 'public', members: ['zero_id', 'aero_id'] }
+    socket['users'] = [{ id: 'public', members: ['zero_id', 'aero_id'] },]
+    socket.onAny((event) => {
+        //console.log(wsServer.sockets.adapter);
+        console.log(`socket event : ${event}`);
+    });
     socket.on("join_room", (roomName) => {
         socket.join(roomName);
-        //send message to room
-        socket.to(roomName).emit("welcome");
+        console.log(socket.users[0].id);
+        if (socket.users[0].id === 'public') {
+            socket.users[0].members.push(socket.nickname);
+            socket.to(roomName).emit("welcome", socket.users[0].members);
+            console.log('server users list: ', socket.users[0].members);
+        }
     });
     socket.on("offer", (offer, roomName) => {
         socket.to(roomName).emit("offer", offer);
@@ -83,16 +92,21 @@ wsServer.on("connection", socket => {
     socket.on("ice", (ice, roomName) => {
         socket.to(roomName).emit("ice", ice);
     });
-    socket.on("new_message", (msg, done) => {
-        socket.broadcast.emit("new_message", `${socket.nickname}: ${msg}`);
+    socket.on("new_message", (roomName, msg, done) => {
+        socket.to(roomName).emit("new_message", `${socket.nickname}: ${msg}`);
         done();
     });
-    socket.on("disconnecting"() => {
-
+    socket.on("disconnecting", () => {
+        for (let i = 0; i < socket.users[0].members.length; i++) {
+            if (socket.users[0].members[i] === socket.nickname) {
+                socket.users[0].members.splice(i, 1);
+                break;
+            }
+        }
+        console.log(socket.users[0].members);
+        console.log('hel', socket.users);
     })
 });
-
-
 
 
 
