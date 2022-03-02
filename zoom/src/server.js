@@ -8,7 +8,6 @@ import cors from 'cors';
 const maria = require('./maria');
 app.use(cors());
 
-
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -17,9 +16,9 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, "../zoom-react/build")));
 
 //app.get("/", (_, res) => res.render("home"));
-app.get("/test2", function (요청, 응답) {
-    응답.sendFile(path.join(__dirname, '../zoom-react/build/index.html'))
-});
+// app.get("/test2", function (요청, 응답) {
+//     응답.sendFile(path.join(__dirname, '../zoom-react/build/index.html'))
+// });
 
 
 app.get("/getMessages", function (req, res) {
@@ -67,21 +66,37 @@ const httpServer = http.createServer(app);
 const wsServer = new Server(httpServer);
 
 wsServer.on("connection", socket => {
-    socket["nickname"] = '누군가';
-    //    socket['users'] = { id: 'public', members: ['zero_id', 'aero_id'] }
-    socket['users'] = [{ id: 'public', members: ['zero_id', 'aero_id'] },]
+    socket["nickname"] = '';
+    //socket['list'] = { id: 'a', members: ['test1', 'test2'] }
+    socket['list'] = {
+        a: [1, 2]
+        ,
+        b: [3, 4]
+    }
+
+    // socket['users'] = [{ id: '', members: ['test1'] },]
     socket.onAny((event) => {
         //console.log(wsServer.sockets.adapter);
         console.log(`socket event : ${event}`);
     });
-    socket.on("join_room", (roomName) => {
+    socket.on("join_room", (roomName, userName) => {
+        socket['nickname'] = userName;
         socket.join(roomName);
-        console.log(socket.users[0].id);
-        if (socket.users[0].id === 'public') {
-            socket.users[0].members.push(socket.nickname);
-            socket.to(roomName).emit("welcome", socket.users[0].members);
-            console.log('server users list: ', socket.users[0].members);
+
+        if (socket.list[roomName]) {
+            socket.list[roomName].push(socket['nickname']);
+        } else {
+            socket.list[roomName] = [socket['nickname']];
         }
+
+        // if (socket.users[0].id === 'public') {
+        //     socket.users[0].members.push(socket.nickname);
+        //     socket.to(roomName).emit("welcome", socket.users[0].members);
+        //     console.log('server users list: ', socket.users[0].members);
+        // }
+
+        socket.to(roomName).emit("welcome", socket.list);
+        console.log('server users list: ', socket.list);
     });
     socket.on("offer", (offer, roomName) => {
         socket.to(roomName).emit("offer", offer);
@@ -97,21 +112,22 @@ wsServer.on("connection", socket => {
         done();
     });
     socket.on("disconnecting", () => {
-        for (let i = 0; i < socket.users[0].members.length; i++) {
-            if (socket.users[0].members[i] === socket.nickname) {
-                socket.users[0].members.splice(i, 1);
-                break;
-            }
-        }
-        console.log(socket.users[0].members);
-        console.log('hel', socket.users);
+        // for (let i = 0; i < socket.list.members.length; i++) {
+        //     if (socket.list.members[i] === socket.nickname) {
+        //         socket.list.members.splice(i, 1);
+        //         break;
+        //     }
+        // }
+        console.log(socket.list.members);
     })
 });
 
 
 
-const handleListen = () => console.log(`on 3000`);
-httpServer.listen(3000, handleListen);
+
+
+const handleListen = () => console.log(`on 3001`);
+httpServer.listen(3001, handleListen);
 
 
 // function publicRooms() {
