@@ -65,15 +65,34 @@ const httpServer = http.createServer(app);
 //const wsServer = new Server(httpServer); 
 const wsServer = new Server(httpServer);
 
+function publics() {
+    const {
+        sockets: {
+            adapter: { sids, rooms },
+        },
+    } = wsServer;
+    const publics = [];
+    rooms.forEach((_, key) => {
+        if (sids.get(key) === undefined) {
+            publics.push(key);
+        }
+    });
+    return publics;
+}
+
+function countRoom(roomName) {
+    return wsServer.sockets.adapter.rooms.get(roomName)?.size;
+}
+
+const list = {
+    a: { a_public_1: [1, 2], a_public_2: [3, 4] },
+}
+
 wsServer.on("connection", socket => {
     socket["nickname"] = '';
+    socket['roomName'] = '';
+    socket['publicRoom'] = '';
     //socket['list'] = { id: 'a', members: ['test1', 'test2'] }
-    socket['list'] = {
-        a: [1, 2]
-        ,
-        b: [3, 4]
-    }
-
     // socket['users'] = [{ id: '', members: ['test1'] },]
     socket.onAny((event) => {
         //console.log(wsServer.sockets.adapter);
@@ -81,25 +100,57 @@ wsServer.on("connection", socket => {
     });
     socket.on("join_room", (roomName, userName) => {
         socket['nickname'] = userName;
+        socket['roomName'] = roomName;
         socket.join(roomName);
 
-        if (socket.list[roomName]) {
-            socket.list[roomName].push(socket['nickname']);
-        } else {
-            socket.list[roomName] = [socket['nickname']];
+        // console.log('list[a][publicRoom].size', list[roomName][publicRoom].length);
+        console.log('list', list);
+
+        for (let i = 1; ; i++) {
+            const publicRoom = roomName + '_public_' + i;
+            // public이 존재하지 않을 경우
+            if (!list[roomName]) {
+                list[roomName] = [];
+                list[roomName][publicRoom] = [userName];
+                socket['publicRoom'] = publicRoom;
+                //userList 발사
+                break;
+            }
+            //콘서트가 존재할 경우
+            else if (list[roomName][publicRoom]) {
+                // 콘서트가 존재하고, 사용자가 3명 이하일 경우 접속
+                if (list[roomName][publicRoom].length <= 2) {
+                    socket.join(publicRoom);
+                    list[roomName][publicRoom].push(userName);
+                    socket['publicRoom'] = publicRoom;
+                    //userList 발사
+                    break;
+                }
+                // 그렇지 않을 경우 i++해서 public_i 숫자 올려서 반복.
+            }
+            // custom room이 존재하지 않을 경우
+            else {
+                list[roomName][publicRoom] = [userName];
+                socket['publicRoom'] = publicRoom;
+                //userList 발사
+                break;
+            }
         }
+        socket.to(roomName).emit('userList', list[socket.roomName]);
+        console.log('just list', list[socket.roomName]);
+        socket.to(roomName).emit('publicUserList', list[socket.roomName][socket.publicRoom]);
+        // socket.to(roomName).emit("welcome", list);
+        console.log('server users list: ', list);
 
-        // if (socket.users[0].id === 'public') {
-        //     socket.users[0].members.push(socket.nickname);
-        //     socket.to(roomName).emit("welcome", socket.users[0].members);
-        //     console.log('server users list: ', socket.users[0].members);
-        // }
-
-        socket.to(roomName).emit("welcome", socket.list);
-        console.log('server users list: ', socket.list);
     });
     socket.on("offer", (offer, roomName) => {
         socket.to(roomName).emit("offer", offer);
+    });
+    socket.on("userList", (done) => {
+        done(list[socket.roomName]);
+    });
+    socket.on("publicUserList", (done) => {
+        done(list[socket.roomName][socket.publicRoom]);
     });
     socket.on("answer", (answer, roomName) => {
         socket.to(roomName).emit("answer", answer);
@@ -109,16 +160,38 @@ wsServer.on("connection", socket => {
     });
     socket.on("new_message", (roomName, msg, done) => {
         socket.to(roomName).emit("new_message", `${socket.nickname}: ${msg}`);
+        console.log(socket.rooms);
         done();
     });
+
     socket.on("disconnecting", () => {
-        // for (let i = 0; i < socket.list.members.length; i++) {
-        //     if (socket.list.members[i] === socket.nickname) {
-        //         socket.list.members.splice(i, 1);
-        //         break;
+        const roomName = socket['roomName'];
+        const publicRoom = socket['publicRoom']
+
+        if (socket.rooms.size > 1) {
+            for (let i = 0; ; i++) {
+                if (list[roomName][publicRoom][i] == socket['nickname']) {
+                    list[roomName][publicRoom].splice(i, 1);
+                    console.log('after rooms', list);
+                    break;
+                }
+            }
+        }
+
+
+        // if (socket.rooms.size > 1) {
+        //     for (let i = 0; ; i++) {
+        //         const publicRoom = roomName + '_public_' + i;
+
+        //         if (list[roomName][publicRoom] == socket['nickname']) {
+        //             list[roomName][publicRoom].splice(i, 1);
+        //             // socket.leave(publicRoom);
+        //             console.log('disconnecting', list);
+
+        //             break;
+        //         }
         //     }
         // }
-        console.log(socket.list.members);
     })
 });
 
@@ -130,16 +203,16 @@ const handleListen = () => console.log(`on 3001`);
 httpServer.listen(3001, handleListen);
 
 
-// function publicRooms() {
+// function publics() {
 //     const sids = wsServer.sockets.adapter.sids;
 //     const rooms = wsServer.sockets.adapter.rooms;
-//     const publicRooms = [];
+//     const publics = [];
 //     rooms.forEach((_, key) => {
 //         if (sids.get(key) === undefined) {
-//             publicRooms.push(key);
+//             publics.push(key);
 //         }
 //     });
-//     return publicRooms;
+//     return publics;
 // }
 
 // function countRoom(roomName) {
@@ -164,7 +237,7 @@ httpServer.listen(3001, handleListen);
 //         backSocket.join(roomName);
 //         done();
 //         backSocket.to(roomName).emit("welcome", backSocket.name, countRoom(roomName));
-//         wsServer.sockets.emit("room_change", publicRooms());
+//         wsServer.sockets.emit("room_change", publics());
 //     });
 //     backSocket.on("disconnecting", () => {
 //         backSocket.rooms.forEach(room =>
@@ -172,7 +245,7 @@ httpServer.listen(3001, handleListen);
 //         );
 //     });
 //     backSocket.on("disconnect", () => {
-//         wsServer.sockets.emit("room_change", publicRooms());
+//         wsServer.sockets.emit("room_change", publics());
 //     })
 //     backSocket.on("new_message", (msg, room, done) => {
 //         backSocket.to(room).emit("new_message", `${backSocket.name} : ${msg}`);
