@@ -88,6 +88,10 @@ const list = {
     a: { a_public_1: [1, 2], a_public_2: [3, 4] },
 }
 
+const roomList = {
+    a: [1, 2],
+};
+
 wsServer.on("connection", socket => {
     socket["nickname"] = '';
     socket['roomName'] = '';
@@ -103,6 +107,16 @@ wsServer.on("connection", socket => {
         socket['roomName'] = roomName;
         socket.join(roomName);
 
+        if (!roomList[roomName]) {
+            roomList[roomName] = [userName];
+        }
+        else {
+            roomList[roomName].push(userName);
+        }
+
+        console.log('!!!!', roomList[roomName]);
+
+
         // console.log('list[a][publicRoom].size', list[roomName][publicRoom].length);
         console.log('list', list);
 
@@ -113,7 +127,7 @@ wsServer.on("connection", socket => {
                 list[roomName] = [];
                 list[roomName][publicRoom] = [userName];
                 socket['publicRoom'] = publicRoom;
-                //userList 발사
+                socket.join(publicRoom);
                 break;
             }
             //콘서트가 존재할 경우
@@ -132,13 +146,12 @@ wsServer.on("connection", socket => {
             else {
                 list[roomName][publicRoom] = [userName];
                 socket['publicRoom'] = publicRoom;
-                //userList 발사
+                socket.join(publicRoom);
                 break;
             }
         }
-        socket.to(roomName).emit('userList', list[socket.roomName]);
-        console.log('just list', list[socket.roomName]);
-        socket.to(roomName).emit('publicUserList', list[socket.roomName][socket.publicRoom]);
+        socket.to(roomName).emit('userList', roomList[roomName]);
+        socket.to(socket['publicRoom']).emit('publicUserList', list[roomName][socket['publicRoom']]);
         // socket.to(roomName).emit("welcome", list);
         console.log('server users list: ', list);
 
@@ -147,7 +160,7 @@ wsServer.on("connection", socket => {
         socket.to(roomName).emit("offer", offer);
     });
     socket.on("userList", (done) => {
-        done(list[socket.roomName]);
+        done(roomList[socket.roomName]);
     });
     socket.on("publicUserList", (done) => {
         done(list[socket.roomName][socket.publicRoom]);
