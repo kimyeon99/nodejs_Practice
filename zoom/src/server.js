@@ -6,6 +6,12 @@ import bodyParser from 'body-parser';
 const path = require('path');
 import cors from 'cors';
 const maria = require('./maria');
+
+const redis = require('redis');
+const redisClient = redis.createClient();
+redisClient.connect();
+
+
 app.use(cors());
 
 app.use(bodyParser.json());
@@ -19,6 +25,14 @@ app.use(express.static(path.join(__dirname, "../zoom-react/build")));
 // app.get("/test2", function (요청, 응답) {
 //     응답.sendFile(path.join(__dirname, '../zoom-react/build/index.html'))
 // });
+
+redisClient.on("error", function (err) {
+    console.log("redis Error " + err);
+});
+
+redisClient.on('connect', function () {
+    console.log('redis Connected!');
+});
 
 
 app.get("/getMessages", function (req, res) {
@@ -58,7 +72,7 @@ app.post("/sendMessage", function (req, res) {
     }
 });
 
-//redisClient.zIncrBy('dungeon_rank', 150, '예승재');
+
 
 // http, ws 동시 지원
 const httpServer = http.createServer(app);
@@ -92,10 +106,12 @@ const roomList = {
     a: [1, 2],
 };
 
-wsServer.on("connection", socket => {
+wsServer.on("connection", async (socket) => {
     socket["nickname"] = '';
     socket['roomName'] = '';
     socket['publicRoom'] = '';
+
+    console.log(await redisClient.zRangeWithScores('concert_rank', 0, -1, { REV: true }));
     //socket['list'] = { id: 'a', members: ['test1', 'test2'] }
     // socket['users'] = [{ id: '', members: ['test1'] },]
     socket.onAny((event) => {
@@ -107,15 +123,27 @@ wsServer.on("connection", socket => {
         socket['roomName'] = roomName;
         socket.join(roomName);
 
+        redisClient.zAdd("concert_rank", { score: 0, value: userName }).then((res) => {
+            console.log('zadd', res + '명 추가됨');
+        })
+        redisClient.zIncrBy('concert_rank', -150, '장현석');
+        // client.exists('key', function(err, reply) {
+        //     if (reply === 1) {
+        //         console.log('exists');
+        //     } else {
+        //         console.log('doesn\'t exist');
+        //     }
+        // });
+        //30초 후 key1 만료
+        //client.expire('key1', 30);
+
+
         if (!roomList[roomName]) {
             roomList[roomName] = [userName];
         }
         else {
             roomList[roomName].push(userName);
         }
-
-        console.log('!!!!', roomList[roomName]);
-
 
         // console.log('list[a][publicRoom].size', list[roomName][publicRoom].length);
         console.log('list', list);
@@ -150,7 +178,7 @@ wsServer.on("connection", socket => {
                 break;
             }
         }
-        socket.to(roomName).emit('userList', roomList[roomName]);
+        socket.to(roomName).emit('userList', roomList[roomName], socket['publicRoom']);
         socket.to(socket['publicRoom']).emit('publicUserList', list[roomName][socket['publicRoom']]);
         // socket.to(roomName).emit("welcome", list);
         console.log('server users list: ', list);
@@ -172,9 +200,27 @@ wsServer.on("connection", socket => {
         socket.to(roomName).emit("ice", ice);
     });
     socket.on("new_message", (roomName, msg, done) => {
-        socket.to(roomName).emit("new_message", `${socket.nickname}: ${msg}`);
-        console.log(socket.rooms);
+        let mode = true;
+        if (roomName === socket['roomName']) {
+            socket.to(roomName).emit("new_message", mode, `${socket.nickname}: ${msg}`);
+        } else {
+            mode = false;
+            socket.to(roomName).emit("new_message", mode, `${socket.nickname}: ${msg}`);
+        }
+
         done();
+    });
+    socket.on("end_concert", (roomName) => {
+        //socket.to(roomName).emit('end_concert');
+        socket.to(roomName).emit('end_concert');
+        redisClient.del('concert_rank');
+        console.log('del complete')
+    });
+    socket.on('get_rank', async (roomName, done) => {
+        const rank = await redisClient.zRank('concert_rank', socket['nickname']);
+        console.log(rank);
+        console.log('socketID', socket.id);
+        done(rank);
     });
 
     socket.on("disconnecting", () => {
@@ -185,13 +231,24 @@ wsServer.on("connection", socket => {
             for (let i = 0; ; i++) {
                 if (list[roomName][publicRoom][i] == socket['nickname']) {
                     list[roomName][publicRoom].splice(i, 1);
+                    socket.to(socket['publicRoom']).emit('publicUserList', list[roomName][socket['publicRoom']]);
                     console.log('after rooms', list);
                     break;
                 }
             }
         }
+        if (socket.rooms.size > 1) {
+            for (let i = 0; ; i++) {
+                if (roomList[roomName][i] == socket['nickname']) {
+                    roomList[roomName].splice(i, 1);
+                    socket.to(roomName).emit('userList', roomList[roomName]);
+                    break;
+                }
+            }
+        }
 
-
+        redisClient.zRem('concert_rank', socket['nickname']);
+        console.log(socket['nickname'] + '님이 redis 나감');
         // if (socket.rooms.size > 1) {
         //     for (let i = 0; ; i++) {
         //         const publicRoom = roomName + '_public_' + i;
